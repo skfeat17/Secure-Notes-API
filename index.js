@@ -8,12 +8,12 @@ require('dotenv').config()
 app.use(cors());
 app.use(express.json()) 
 app.use('/', Route)
-
+app.get("/",(req,res)=>{
+  res.json({message:"Server is Running"})
+})
 
 dbConnection()
 
-// app.listen(process.env.PORT, () => {
-//   console.log(`Server running at ${process.env.PORT}`)
-// })
-const serverless = require("serverless-http");
-module.exports = serverless(app);
+app.listen(process.env.PORT, () => {
+  console.log(`Server running at ${process.env.PORT}`)
+})
