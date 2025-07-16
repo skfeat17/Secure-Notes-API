@@ -79,44 +79,48 @@ module.exports.getNote = async (req, res) => {
     }
 };
 module.exports.putNote = async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const modifiedNote = req.body; // contains id, title, content, maybe extra
-  
-      const decoded = jwt.verify(token, process.env.JWT_KEY);
-      const user = await User.findById(decoded.id);
-  
-      const secretKey =
-        user.username +
-        user.password.slice(0, 20) +
-        process.env.CRYPTO_KEY +
-        token.slice(10, 40);
-  
-      if (!user.notes?.length) {
-        return res.status(404).json({ success: false, message: "No notes found" });
-      }
-      const notesArr = noteDecoder(user.notes, secretKey);
-      const index = notesArr.findIndex(n => n.id.toString() === modifiedNote.id);
-      if (index === -1) {
-        return res.status(404).json({ success: false, message: "Note not found" });
-      }
-      notesArr[index] = {
-        ...notesArr[index],
-        title: modifiedNote.title,
-        content: modifiedNote.content,
-        createdAt: new Date() 
-      };
-  
-      user.notes = noteEncoder(notesArr, secretKey);
-  
-      await user.save();
-  
-      res.status(200).json({ success: true, message: "Note updated", notes: notesArr });
-    } catch (err) {
-      res.status(400).json({ success: false, message: err.message });
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const modifiedNote = req.body; // contains id, title, content
+
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+    const user = await User.findById(decoded.id);
+
+    const secretKey =
+      user.username +
+      user.password.slice(0, 20) +
+      process.env.CRYPTO_KEY +
+      token.slice(10, 40);
+
+    const simpleCrypto = new SimpleCrypto(secretKey);
+
+    if (!user.notes?.length) {
+      return res.status(404).json({ success: false, message: "No notes found" });
     }
-  };
-  
+
+    // Find the note index
+    const index = user.notes.findIndex(n => n._id.toString() === modifiedNote.id);
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: "Note not found" });
+    }
+
+    // Encrypt new values
+    const encryptedTitle = simpleCrypto.encrypt(modifiedNote.title);
+    const encryptedContent = simpleCrypto.encrypt(modifiedNote.content);
+
+    // Update only that note
+    user.notes[index].title = encryptedTitle;
+    user.notes[index].content = encryptedContent;
+    user.notes[index].createdAt = new Date(); // update timestamp
+
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Note updated" });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
   module.exports.deleteNote = async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
